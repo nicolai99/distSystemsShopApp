@@ -1,0 +1,2 @@
+[default.databases.shop]
+url = "sqlite://shop.db"
