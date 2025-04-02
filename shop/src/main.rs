@@ -18,7 +18,13 @@ struct Item {
     name: String,
     quantity: i32,
 }
-
+#[derive(Serialize)]
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+struct ItemWithoutId {
+    name: String,
+    quantity: i32,
+}
 #[get("/items/<id>")]
 async fn get_item_by_id(
     mut db: Connection<Logs>,
@@ -72,10 +78,10 @@ async fn items(mut db: Connection<Logs>) -> Result<Json<Vec<Item>>, status::Cust
     }
 }
 
-#[post("/items", format = "json", data = "<item>")]
+#[post("/items", data = "<item>")]
 async fn create_or_update_item(
     mut db: Connection<Logs>,
-    item: Json<Item>,
+    item: Json<ItemWithoutId>,
 ) -> Result<status::Custom<Json<Item>>, status::Custom<String>> {
     let result = sqlx::query("SELECT * FROM item WHERE name = ?")
         .bind(&item.name)
@@ -86,20 +92,20 @@ async fn create_or_update_item(
         Ok(Some(row)) => {
             let new_quantity: i32 = row.try_get("quantity").unwrap_or(0) + item.quantity;
             
-            sqlx::query("UPDATE item SET quantity = ? WHERE name = ?")
+           let query= sqlx::query("UPDATE item SET quantity = ? WHERE name = ?")
                 .bind(new_quantity)
                 .bind(&item.name)
                 .execute(&mut **db)
                 .await
                 .map_err(|_| status::Custom(Status::InternalServerError, "Update failed".into()))?;
-
-            let updated_item = Item {
-                id: row.try_get("id").unwrap(),
-                name: item.name.clone(),
-                quantity: new_quantity,
+            let last_id = query.last_insert_rowid();
+            let response_item=Item{
+                id:last_id as i32,
+                name:item.name.clone(),
+                quantity:new_quantity
             };
 
-            Ok(status::Custom(Status::Ok, Json(updated_item)))
+            Ok(status::Custom(Status::Ok, Json(response_item)))
         }
         Ok(None) => {
             let insert_result = sqlx::query("INSERT INTO item (name, quantity) VALUES (?, ?)")
@@ -131,11 +137,11 @@ async fn create_or_update_item(
     }
 }
 
-#[put("/items/<id>", format = "json", data = "<item>")]
+#[put("/items/<id>", data = "<item>")]
 async fn update_item(
     mut db: Connection<Logs>,
     id: i32,
-    item: Json<Item>,
+    item: Json<ItemWithoutId>,
 ) -> Result<status::Custom<Json<Item>>, status::Custom<String>> {
     let result = sqlx::query("SELECT * FROM item WHERE id = ?")
         .bind(id)
@@ -182,6 +188,30 @@ async fn delete_item(
         Ok(res) if res.rows_affected() > 0 => Ok(status::NoContent),
         Ok(_) => Err(status::Custom(Status::NotFound, "Item not found".into())),
         Err(_) => Err(status::Custom(Status::InternalServerError, "Delete failed".into())),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::rocket;
+    use rocket::local::blocking::Client;
+    use rocket::http::Status;
+
+    #[test]
+    fn test_items() {
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client.get(uri!(super::items)).dispatch();
+        assert_eq!(response.status(), Status::Ok);
+    }
+
+    #[test]
+    fn test_create_item(){
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let item=r#"{"id":1,"name":"Apfel","quantity":5}"#;
+        let response = client.post(uri!(super::create_or_update_item)).body(item).dispatch();
+        let status=response.status();
+        assert!(status==Status::Created || status==Status::Ok,"Status should be 200 or 201");
+
     }
 }
 
