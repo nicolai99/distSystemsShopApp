@@ -1,0 +1,20 @@
+version: '1'
+services:
+  rustshop: 
+    container_name: rustshop
+    build:
+      context: ./shop
+    ports:
+      - 8000:8000
+    environment:
+      - ROCKET_ADDRESS=0.0.0.0
+    command: /bin/sh -c "cargo run"
+    
+  frontend:
+    container_name: frontendflask
+    build:
+      context: ./frontendflask
+    ports:
+      - 5000:5000
+    environment:
+      - API_SERVER_URL=http://rustshop:8000

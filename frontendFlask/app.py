@@ -6,8 +6,7 @@ app = Flask(__name__)
 app.secret_key = "shopping_app_secret_key"  # Required for flash messages
 
 # API server URL - configurable via environment variable
-#API_URL = os.environ.get('API_SERVER_URL', 'http://localhost:3000')
-API_URL="http://localhost:8000"
+API_URL = os.environ.get('API_SERVER_URL', 'http://localhost:3000')
 
 # Routes
 @app.route('/')
