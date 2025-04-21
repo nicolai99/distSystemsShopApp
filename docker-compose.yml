@@ -9,12 +9,20 @@ services:
     environment:
       - ROCKET_ADDRESS=0.0.0.0
     command: /bin/sh -c "cargo run"
+    networks:
+      - shoppingnet
     
   frontend:
     container_name: frontendflask
     build:
       context: ./frontendflask
     ports:
-      - 5000:5000
+      - 5050:5050
     environment:
       - API_SERVER_URL=http://rustshop:8000
+    networks:
+      - shoppingnet
+
+networks:
+  shoppingnet:
+    external: true

@@ -342,8 +342,8 @@ with open('templates/shopping.html', 'w') as f:
     ''')
 
 if __name__ == '__main__':
-    # Use environment variable for port or default to 5000
-    port = int(os.environ.get('PORT', 5000))
+    # Use environment variable for port or default to 5050
+    port = int(os.environ.get('PORT', 5050))
     # Set debug mode based on environment variable
     debug = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
     
