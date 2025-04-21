@@ -1,2 +1,2 @@
 [default.databases.shop]
-url = "sqlite://shop.db"
+url = "postgres://postgres:password@database:5432/shop"

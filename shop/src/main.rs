@@ -8,7 +8,7 @@ use rocket_db_pools::{Connection, Database};
 
 #[derive(Database)]
 #[database("shop")]
-struct Logs(sqlx::SqlitePool);
+struct Logs(sqlx::PgPool);
 
 #[derive(Serialize)]
 #[derive(Deserialize)]
@@ -30,7 +30,7 @@ async fn get_item_by_id(
     mut db: Connection<Logs>,
     id: i64,
 ) -> Result<Json<Item>, status::Custom<String>> {
-    let result = sqlx::query("SELECT * FROM item WHERE id = ?")
+    let result = sqlx::query("SELECT * FROM item WHERE id = $1")
         .bind(id)
         .fetch_one(&mut **db)
         .await;
@@ -45,11 +45,7 @@ async fn get_item_by_id(
 
             Ok(Json(item))
         }
-        Err(_) => {
-            let message=String::from("Server error");
-            
-            Err(status::Custom(Status::InternalServerError,message))
-        }
+        Err(_) => Err(status::Custom(Status::InternalServerError, "Server error".into())),
     }
 }
 
@@ -71,10 +67,7 @@ async fn items(mut db: Connection<Logs>) -> Result<Json<Vec<Item>>, status::Cust
 
             Ok(Json(items))
         }
-        Err(_) => {
-            let message = String::from("Item not found");
-            Err(status::Custom(Status::NotFound, message))
-        }
+        Err(_) => Err(status::Custom(Status::NotFound, "Items not found".into())),
     }
 }
 
@@ -83,7 +76,7 @@ async fn create_or_update_item(
     mut db: Connection<Logs>,
     item: Json<ItemWithoutId>,
 ) -> Result<status::Custom<Json<Item>>, status::Custom<String>> {
-    let result = sqlx::query("SELECT * FROM item WHERE name = ?")
+    let result = sqlx::query("SELECT * FROM item WHERE name = $1")
         .bind(&item.name)
         .fetch_optional(&mut **db)
         .await;
@@ -91,43 +84,37 @@ async fn create_or_update_item(
     match result {
         Ok(Some(row)) => {
             let new_quantity: i32 = row.try_get("quantity").unwrap_or(0) + item.quantity;
-            
-           let query= sqlx::query("UPDATE item SET quantity = ? WHERE name = ?")
+            let id: i32 = row.try_get("id").unwrap_or(0);
+            let _ = sqlx::query("UPDATE item SET quantity = $1 WHERE name = $2")
                 .bind(new_quantity)
                 .bind(&item.name)
                 .execute(&mut **db)
                 .await
                 .map_err(|_| status::Custom(Status::InternalServerError, "Update failed".into()))?;
-            let last_id = query.last_insert_rowid();
-            let response_item=Item{
-                id:last_id as i32,
-                name:item.name.clone(),
-                quantity:new_quantity
+
+            let response_item = Item {
+                id,
+                name: item.name.clone(),
+                quantity: new_quantity,
             };
 
             Ok(status::Custom(Status::Ok, Json(response_item)))
         }
         Ok(None) => {
-            let insert_result = sqlx::query("INSERT INTO item (name, quantity) VALUES (?, ?)")
+            let insert_result = sqlx::query("INSERT INTO item (name, quantity) VALUES ($1, $2) RETURNING id")
                 .bind(&item.name)
                 .bind(item.quantity)
-                .execute(&mut **db)
+                .fetch_one(&mut **db)
                 .await;
 
             match insert_result {
-                Ok(_) => {
-                    let new_id = sqlx::query("SELECT last_insert_rowid() AS id")
-                        .fetch_one(&mut **db)
-                        .await
-                        .map(|row| row.try_get::<i32, _>("id").unwrap_or(0))
-                        .unwrap_or(0);
-
+                Ok(row) => {
+                    let new_id = row.try_get("id").unwrap_or(0);
                     let new_item = Item {
                         id: new_id,
                         name: item.name.clone(),
                         quantity: item.quantity,
                     };
-
                     Ok(status::Custom(Status::Created, Json(new_item)))
                 }
                 Err(_) => Err(status::Custom(Status::InternalServerError, "Insert failed".into())),
@@ -143,14 +130,14 @@ async fn update_item(
     id: i32,
     item: Json<ItemWithoutId>,
 ) -> Result<status::Custom<Json<Item>>, status::Custom<String>> {
-    let result = sqlx::query("SELECT * FROM item WHERE id = ?")
+    let result = sqlx::query("SELECT * FROM item WHERE id = $1")
         .bind(id)
         .fetch_optional(&mut **db)
         .await;
 
     match result {
         Ok(Some(_)) => {
-            let update_result = sqlx::query("UPDATE item SET name = ?, quantity = ? WHERE id = ?")
+            let update_result = sqlx::query("UPDATE item SET name = $1, quantity = $2 WHERE id = $3")
                 .bind(&item.name)
                 .bind(item.quantity)
                 .bind(id)
@@ -179,7 +166,7 @@ async fn delete_item(
     mut db: Connection<Logs>,
     id: i32,
 ) -> Result<status::NoContent, status::Custom<String>> {
-    let result = sqlx::query("DELETE FROM item WHERE id = ?")
+    let result = sqlx::query("DELETE FROM item WHERE id = $1")
         .bind(id)
         .execute(&mut **db)
         .await;
@@ -207,7 +194,7 @@ mod test {
     #[test]
     fn test_create_item(){
         let client = Client::tracked(rocket()).expect("valid rocket instance");
-        let item=r#"{"id":1,"name":"Apfel","quantity":5}"#;
+        let item=r#"{"name":"Apfel","quantity":5}"#;
         let response = client.post(uri!(super::create_or_update_item)).body(item).dispatch();
         let status=response.status();
         assert!(status==Status::Created || status==Status::Ok,"Status should be 200 or 201");

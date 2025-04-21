@@ -1,6 +1,6 @@
 version: '1'
 services:
-  rustshop: 
+  rustshop:
     container_name: rustshop
     build:
       context: ./shop
@@ -8,6 +8,7 @@ services:
       - 8000:8000
     environment:
       - ROCKET_ADDRESS=0.0.0.0
+      - DATABASE_URL=postgres://postgres:password@database:5432/shop
     command: /bin/sh -c "cargo run"
     networks:
       - shoppingnet
@@ -22,6 +23,24 @@ services:
       - API_SERVER_URL=http://rustshop:8000
     networks:
       - shoppingnet
+
+  db:
+    image: postgres:15
+    container_name: database
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: shop
+    ports:
+      - "5432:5432"
+    networks:
+      - shoppingnet
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
 
 networks:
   shoppingnet:
