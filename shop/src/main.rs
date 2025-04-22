@@ -25,10 +25,20 @@ struct ItemWithoutId {
     name: String,
     quantity: i32,
 }
+
+#[get("/test_db")]
+async fn test_connection(mut db: Connection<Logs>) -> &'static str {
+    // Beispiel: einfache Query (optional)
+    let _rows = sqlx::query("SELECT 1")
+        .fetch_all(&mut **db)
+        .await
+        .expect("DB Query failed");
+    "Connected to Postgres!"
+}
 #[get("/items/<id>")]
 async fn get_item_by_id(
     mut db: Connection<Logs>,
-    id: i64,
+    id: i32,
 ) -> Result<Json<Item>, status::Custom<String>> {
     let result = sqlx::query("SELECT * FROM item WHERE id = $1")
         .bind(id)
@@ -206,5 +216,5 @@ mod test {
 fn rocket() -> _ {
     rocket::build()
         .attach(Logs::init())
-        .mount("/", routes![get_item_by_id,items, create_or_update_item, update_item, delete_item])
+        .mount("/", routes![get_item_by_id,items, create_or_update_item, update_item, delete_item,test_connection])
 }

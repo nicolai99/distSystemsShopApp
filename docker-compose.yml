@@ -10,20 +10,18 @@ services:
       - ROCKET_ADDRESS=0.0.0.0
       - DATABASE_URL=postgres://postgres:password@database:5432/shop
     command: /bin/sh -c "cargo run"
-    networks:
-      - shoppingnet
+    volumes:
+      - ./shop:/app
+
     
   frontend:
     container_name: frontendflask
     build:
       context: ./frontendflask
     ports:
-      - 5050:5050
+      - "5000:5050"
     environment:
       - API_SERVER_URL=http://rustshop:8000
-    networks:
-      - shoppingnet
-
   db:
     image: postgres:15
     container_name: database
@@ -34,14 +32,5 @@ services:
       POSTGRES_DB: shop
     ports:
       - "5432:5432"
-    networks:
-      - shoppingnet
     volumes:
-      - pgdata:/var/lib/postgresql/data
-
-volumes:
-  pgdata:
-
-networks:
-  shoppingnet:
-    external: true
+      - ./pgdata:/var/lib/postgresql/data
