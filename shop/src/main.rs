@@ -110,7 +110,11 @@ async fn items(mut db: Connection<Logs>) -> Result<Json<Vec<Item>>, status::Cust
 
             Ok(Json(items))
         }
-        Err(_) => Err(status::Custom(Status::NotFound, "Items not found".into())),
+        // Err(_) => Err(status::Custom(Status::NotFound, "Items not found".into())),
+        Err(e) => {
+            println!("Database query failed: {}", e);
+            Err(status::Custom(Status::InternalServerError, format!("DB error: {}", e)))
+        }
     }
 }
 

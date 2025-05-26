@@ -22,6 +22,7 @@ services:
       - "5000:5050"
     environment:
       - API_SERVER_URL=http://rustshop:8000
+
   db:
     image: postgres:15
     container_name: database
@@ -34,3 +35,4 @@ services:
       - "5432:5432"
     volumes:
       - ./pgdata:/var/lib/postgresql/data
+      - ./shop/migrations:/docker-entrypoint-initdb.d
