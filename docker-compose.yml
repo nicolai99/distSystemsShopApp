@@ -13,7 +13,7 @@ services:
     volumes:
       - ./shop:/app
 
-    
+
   frontend:
     container_name: frontendflask
     build:
@@ -35,4 +35,3 @@ services:
       - "5432:5432"
     volumes:
       - ./pgdata:/var/lib/postgresql/data
-      - ./shop/migrations:/docker-entrypoint-initdb.d
