@@ -1,14 +1,48 @@
 #[macro_use]
 extern crate rocket;
-use rocket::serde::{Serialize, json::Json};
+
+use rocket::fairing::{Fairing, Info, Kind};
 use rocket::serde::Deserialize;
-use rocket::{get, post, put, delete, http::Status, response::status};
+use rocket::serde::{json::Json, Serialize};
+use rocket::{delete, fairing, get, http::Status, post, put, response::status, Build, Rocket};
 use rocket_db_pools::sqlx::{self, Row};
+
 use rocket_db_pools::{Connection, Database};
+use std::fs;
 
 #[derive(Database)]
 #[database("shop")]
 struct Logs(sqlx::PgPool);
+
+pub struct DbInit;
+
+#[rocket::async_trait]
+impl Fairing for DbInit {
+    fn info(&self) -> Info {
+        Info {
+            name: "Init SQL Script",
+            kind: Kind::Ignite,
+        }
+    }
+
+    async fn on_ignite(&self, rocket: Rocket<Build>) -> fairing::Result {
+        let db = Logs::fetch(&rocket).expect("Failed to fetch DB");
+
+
+        let sql = fs::read_to_string("migrations/init.sql")
+            .expect("Failed to read migrations/init.sql");
+
+
+        let mut connection = db.acquire().await.expect("Failed to acquire connection");
+
+        sqlx::query(&sql)
+            .execute(&mut *connection) // Die Verbindung verwenden
+            .await
+            .expect("init.sql execution failed");
+
+        Ok(rocket)
+    }
+}
 
 #[derive(Serialize)]
 #[derive(Deserialize)]
@@ -28,7 +62,6 @@ struct ItemWithoutId {
 
 #[get("/test_db")]
 async fn test_connection(mut db: Connection<Logs>) -> &'static str {
-    // Beispiel: einfache Query (optional)
     let _rows = sqlx::query("SELECT 1")
         .fetch_all(&mut **db)
         .await
@@ -77,7 +110,11 @@ async fn items(mut db: Connection<Logs>) -> Result<Json<Vec<Item>>, status::Cust
 
             Ok(Json(items))
         }
-        Err(_) => Err(status::Custom(Status::NotFound, "Items not found".into())),
+        // Err(_) => Err(status::Custom(Status::NotFound, "Items not found".into())),
+        Err(e) => {
+            println!("Database query failed: {}", e);
+            Err(status::Custom(Status::InternalServerError, format!("DB error: {}", e)))
+        }
     }
 }
 
@@ -191,8 +228,8 @@ async fn delete_item(
 #[cfg(test)]
 mod test {
     use super::rocket;
-    use rocket::local::blocking::Client;
     use rocket::http::Status;
+    use rocket::local::blocking::Client;
 
     #[test]
     fn test_items() {
@@ -202,13 +239,12 @@ mod test {
     }
 
     #[test]
-    fn test_create_item(){
+    fn test_create_item() {
         let client = Client::tracked(rocket()).expect("valid rocket instance");
-        let item=r#"{"name":"Apfel","quantity":5}"#;
+        let item = r#"{"name":"Apfel","quantity":5}"#;
         let response = client.post(uri!(super::create_or_update_item)).body(item).dispatch();
-        let status=response.status();
-        assert!(status==Status::Created || status==Status::Ok,"Status should be 200 or 201");
-
+        let status = response.status();
+        assert!(status == Status::Created || status == Status::Ok, "Status should be 200 or 201");
     }
 }
 
@@ -216,5 +252,6 @@ mod test {
 fn rocket() -> _ {
     rocket::build()
         .attach(Logs::init())
+        .attach(DbInit)
         .mount("/", routes![get_item_by_id,items, create_or_update_item, update_item, delete_item,test_connection])
 }
