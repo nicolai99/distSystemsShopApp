@@ -5,7 +5,7 @@ ARG APP_NAME=shop
 
 WORKDIR /app
 
-COPY Cargo.lock Cargo.toml ./
+COPY Cargo.toml ./
 RUN mkdir src \
     && echo "// dummy file" > src/lib.rs \
     && cargo build --release

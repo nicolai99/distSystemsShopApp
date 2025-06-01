@@ -253,5 +253,7 @@ fn rocket() -> _ {
     rocket::build()
         .attach(Logs::init())
         .attach(DbInit)
-        .mount("/", routes![get_item_by_id,items, create_or_update_item, update_item, delete_item,test_connection])
+        // .mount("/", routes![get_item_by_id,items, create_or_update_item, update_item, delete_item,test_connection])
+        .mount("/api", routes![get_item_by_id, items, create_or_update_item, update_item, delete_item, test_connection])
+
 }

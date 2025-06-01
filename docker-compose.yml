@@ -17,7 +17,7 @@ services:
   frontend:
     container_name: frontendflask
     build:
-      context: ./frontendflask
+      context: ./frontendFlask
     ports:
       - "5000:5050"
     environment:

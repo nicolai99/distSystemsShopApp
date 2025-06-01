@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--api.dashboard=true"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - shopnet
+
+  rustshop:
+    build:
+      context: ./shop
+    container_name: rustshop
+    environment:
+      - ROCKET_ADDRESS=0.0.0.0
+      - DATABASE_URL=postgres://postgres:password@database:5432/shop
+    command: /bin/server
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.rustshop.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.rustshop.entrypoints=web"
+      - "traefik.http.services.rustshop.loadbalancer.server.port=8000"
+    depends_on:
+      - database
+    networks:
+      - shopnet
+
+  frontend:
+    build:
+      context: ./frontendFlask
+    container_name: frontend
+    environment:
+      - API_SERVER_URL=http://traefik/api
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.services.frontend.loadbalancer.server.port=5050"
+    networks:
+      - shopnet
+
+  database:
+    image: postgres:15
+    container_name: database
+    environment:
+      - POSTGRES_DB=shop
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - shopnet
+
+volumes:
+  pgdata:
+
+networks:
+  shopnet:
