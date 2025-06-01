@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rustshop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rustshop
+  template:
+    metadata:
+      labels:
+        app: rustshop
+    spec:
+      containers:
+        - name: rustshop
+          image: dein-dockerhub-user/rustshop:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: ROCKET_ADDRESS
+              value: "0.0.0.0"
+            - name: DATABASE_URL
+              value: "postgres://postgres:password@postgres:5432/shop"
+
+#service
+apiVersion: v1
+kind: Service
+metadata:
+  name: rustshop
+spec:
+  selector:
+    app: rustshop
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP
